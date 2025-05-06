@@ -7,7 +7,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from settings import params_announcement, headers_announcement, cookies_announcement
 
-input_file = "avito_links_studii.txt"
+input_file = "clean_links_studii.txt"
 output_file = "avito_data_studii.csv"
 
 # Настройка сессии с повторными попытками
