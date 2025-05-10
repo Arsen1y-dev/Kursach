@@ -2,11 +2,20 @@ import requests
 import time
 import random
 from bs4 import BeautifulSoup
-from settings import headers, cookies, params, USER_AGENTS
+from settings import headers, cookies, params
 from datetime import datetime
 import json
+from fake_useragent import UserAgent
+import os
+import logging
+import sys
+import traceback
+import re
+import csv
 
-base_url = 'https://www.avito.ru/moskva/kvartiry/prodam/1-komnatnye-ASgBAgICAkSSA8YQygiAWQ?context=H4sIAAAAAAAA_wEjANz_YToxOntzOjg6ImZyb21QYWdlIjtzOjc6ImNhdGFsb2ciO312FITcIwAAAA'
+ua = UserAgent()
+
+base_url = 'https://www.avito.ru/moskva/kvartiry/prodam-ASgBAgICAUSSA8YQ?context=H4sIAAAAAAAA_wEtANL_YToxOntzOjg6ImZyb21QYWdlIjtzOjE2OiJzZWFyY2hGb3JtV2lkZ2V0Ijt9F_yIfi0AAAA'
 
 def load_existing_links(file_path):
     try:
@@ -19,8 +28,6 @@ def get_listing_links(page, session):
     try:
         current_params = params.copy()
         current_params['p'] = page
-        
-        # Рандомизация параметров запроса
         current_params['timestamp'] = int(time.time())
         current_params['rnd'] = random.randint(1000, 9999)
         
@@ -31,13 +38,11 @@ def get_listing_links(page, session):
             timeout=(10, 15)
         )
         
-        # Проверка на капчу
         if 'captcha' in response.url or 'access-restricted' in response.text:
             print(f"[!] Обнаружена капча на странице {page}")
             handle_captcha(response.text)
             return None
         
-        # Сохранение HTML для отладки
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         with open(f"debug_page_{page}_{timestamp}.html", 'w', encoding='utf-8') as f:
             f.write(response.text)
@@ -59,23 +64,20 @@ def get_listing_links(page, session):
         return None
 
 def handle_captcha(html_content):
-    """Обработка капчи с сохранением информации для ручного решения"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     with open(f"captcha_page_{timestamp}.html", 'w', encoding='utf-8') as f:
         f.write(html_content)
-    print("[!] Обнаружена капча. Файл сохранен как captcha_page.html")
+    print("[!] Обнаружена капча. Файл сохранен.")
 
 def parse_avito_links(max_pages=100, output_file='avito_links_1k.txt'):
     existing_links = load_existing_links(output_file)
     print(f"[*] Начато обновление базы. Существующих ссылок: {len(existing_links)}")
     
     with requests.Session() as session:
-        # Настройка сессии
         session.headers = headers.copy()
-        session.headers['User-Agent'] = random.choice(USER_AGENTS)
+        session.headers['User-Agent'] = ua.random
         session.cookies.update(cookies)
         
-        # Настройка адаптивных параметров
         total_new = 0
         current_page = 1
         error_count = 0
@@ -85,10 +87,8 @@ def parse_avito_links(max_pages=100, output_file='avito_links_1k.txt'):
             print(f"\n[+] Страница {current_page}/{max_pages}")
             
             try:
-                # Ротация User-Agent
-                session.headers['User-Agent'] = random.choice(USER_AGENTS)
+                session.headers['User-Agent'] = ua.random
                 
-                # Рандомизация задержки
                 base_delay = random.uniform(10, 20)
                 jitter = random.uniform(-3, 3)
                 delay = max(5, base_delay + jitter)
@@ -98,7 +98,7 @@ def parse_avito_links(max_pages=100, output_file='avito_links_1k.txt'):
                 if links is None:
                     error_count += 1
                     print(f"[!] Ошибка ({error_count}/{max_errors})")
-                    delay *= 2  # Увеличиваем задержку при ошибках
+                    delay *= 2
                     time.sleep(delay)
                     continue
                     
@@ -118,10 +118,9 @@ def parse_avito_links(max_pages=100, output_file='avito_links_1k.txt'):
                     with open(output_file, 'a', encoding='utf-8') as f:
                         f.write('\n'.join(new_links) + '\n')
                     existing_links.update(new_links)
-                    error_count = 0  # Сброс счетчика ошибок при успехе
+                    error_count = 0
                 
-                # Адаптивная задержка с прогрессивным увеличением
-                progressive_delay = delay * (1 + current_page/100)
+                progressive_delay = delay * (1 + current_page / 100)
                 print(f"  Задержка: {progressive_delay:.2f} сек.")
                 time.sleep(progressive_delay)
                 
@@ -130,10 +129,11 @@ def parse_avito_links(max_pages=100, output_file='avito_links_1k.txt'):
             except Exception as e:
                 print(f"[!] Необработанная ошибка: {str(e)}")
                 error_count += 1
-                time.sleep(60)  # Большая пауза при критических ошибках
+                time.sleep(60)
     
     print(f"\n[✔] Завершено. Новых ссылок добавлено: {total_new}")
     print(f"[✔] Всего уникальных ссылок в базе: {len(existing_links)}")
 
 if __name__ == '__main__':
     parse_avito_links(max_pages=100)
+    

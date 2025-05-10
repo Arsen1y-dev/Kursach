@@ -1,5 +1,5 @@
 input_file = 'avito_links_studii.txt'  # имя исходного файла
-output_file = 'clean_links_studii.txt'  # имя файла для сохранения результата
+output_file = 'clean_links_2.txt'  # имя файла для сохранения результата
 
 with open(input_file, 'r', encoding='utf-8') as f_in, \
      open(output_file, 'w', encoding='utf-8') as f_out:

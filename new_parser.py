@@ -7,8 +7,12 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from settings import params_announcement, headers_announcement, cookies_announcement
 
-input_file = "clean_links_studii.txt"
-output_file = "avito_data_studii.csv"
+input_file = "clean_links.txt"
+output_file = "avito_data_new.csv"
+
+from fake_useragent import UserAgent
+ua = UserAgent()
+
 
 # Настройка сессии с повторными попытками
 session = requests.Session()
@@ -21,6 +25,7 @@ adapter = HTTPAdapter(max_retries=retry_strategy)
 session.mount("https://", adapter)
 session.headers.update(headers_announcement)
 session.cookies.update(cookies_announcement)
+session.headers['User-Agent'] = ua.random
 
 # Загрузка существующих данных
 try:
