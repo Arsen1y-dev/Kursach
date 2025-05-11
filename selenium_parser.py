@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 
 # Настройки Chrome
 options = Options()
+#options.add_argument('--headless')  # Запуск в фоновом режиме
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
 options.add_argument('--disable-blink-features=AutomationControlled')
@@ -36,7 +37,7 @@ driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
 })
 
 # Чтение ссылок
-with open("clean_links_2.txt", "r", encoding="utf-8") as f:
+with open("clean_links_1.txt", "r", encoding="utf-8") as f:
     urls = [line.strip() for line in f.readlines() if line.strip()]
 
 results = []
@@ -515,7 +516,7 @@ for url in tqdm(urls, desc="Парсинг объявлений", unit="ссыл
         continue
 
 # Сохранение в CSV
-with open("output_2.csv", "w", newline='', encoding="utf-8") as csvfile:
+with open("output_4.csv", "w", newline='', encoding="utf-8") as csvfile:
     fieldnames = [
         "Название", "Цена", "Адрес", "Дата публикации", "Продавец", "Тип продавца", "ID объявления",
         "Количество комнат", "Общая площадь", "Жилая площадь", "Площадь кухни", "Этаж", "Этажей в доме",
@@ -529,5 +530,5 @@ with open("output_2.csv", "w", newline='', encoding="utf-8") as csvfile:
     for row in results:
         writer.writerow(row)
 
-driver.quit()j
-print("✅ Готово! Данные сохранены в output.csv")
+driver.quit()
+print("✅ Готово! Данные сохранены")
