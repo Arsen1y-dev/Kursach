@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 
-base_url = 'https://www.avito.ru/moskva/kvartiry/prodam/2-komnatnye-ASgBAgICAkSSA8YQygiCWQ?context=&localPriority=0'
+base_url = 'https://www.avito.ru/moskva/kvartiry/prodam-ASgBAgICAUSSA8YQ?context=H4sIAAAAAAAA_wEjANz_YToxOntzOjg6ImZyb21QYWdlIjtzOjc6ImNhdGFsb2ciO312FITcIwAAAA&f=ASgBAQICAUSSA8YQAUDKCCT8zzKEWQ'
 
 def setup_driver():
     """Настройка веб-драйвера Chrome с оптимизациями."""
