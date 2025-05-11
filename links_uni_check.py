@@ -26,4 +26,4 @@ def remove_duplicate_links(input_file, output_file):
     print(f"Удалено дубликатов: {duplicate_count}")
     print(f"Осталось уникальных ссылок: {len(unique_links)}")
 
-remove_duplicate_links('links.txt', 'pre_clean_links__1.txt')
+remove_duplicate_links('links_2.txt', 'pre_clean_links__2.txt')

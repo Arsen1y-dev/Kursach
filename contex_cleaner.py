@@ -1,5 +1,5 @@
-input_file = 'pre_clean_links__1.txt'  
-output_file = 'clean_links_1.txt'  
+input_file = 'pre_clean_links__2.txt'  
+output_file = 'clean_links_2.txt'  
 
 with open(input_file, 'r', encoding='utf-8') as f_in, \
      open(output_file, 'w', encoding='utf-8') as f_out:

@@ -37,7 +37,7 @@ driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
 })
 
 # Чтение ссылок
-with open("clean_links_1.txt", "r", encoding="utf-8") as f:
+with open("clean_links_2.txt", "r", encoding="utf-8") as f:
     urls = [line.strip() for line in f.readlines() if line.strip()]
 
 results = []
@@ -516,7 +516,7 @@ for url in tqdm(urls, desc="Парсинг объявлений", unit="ссыл
         continue
 
 # Сохранение в CSV
-with open("output_4.csv", "w", newline='', encoding="utf-8") as csvfile:
+with open("output_5.csv", "w", newline='', encoding="utf-8") as csvfile:
     fieldnames = [
         "Название", "Цена", "Адрес", "Дата публикации", "Продавец", "Тип продавца", "ID объявления",
         "Количество комнат", "Общая площадь", "Жилая площадь", "Площадь кухни", "Этаж", "Этажей в доме",

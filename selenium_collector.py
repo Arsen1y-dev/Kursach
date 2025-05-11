@@ -6,26 +6,23 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
-from fake_useragent import UserAgent
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 
-ua = UserAgent()
-
-base_url = 'https://www.avito.ru/moskva/kvartiry/prodam-ASgBAgICAUSSA8YQ?context=H4sIAAAAAAAA_wEtANL_YToxOntzOjg6ImZyb21QYWdlIjtzOjE2OiJzZWFyY2hGb3JtV2lkZ2V0Ijt9F_yIfi0AAAA'
+base_url = 'https://www.avito.ru/moskva/kvartiry/prodam/2-komnatnye-ASgBAgICAkSSA8YQygiCWQ?context=&localPriority=0'
 
 def setup_driver():
     """Настройка веб-драйвера Chrome с оптимизациями."""
     chrome_options = Options()
-    # chrome_options.add_argument('--headless')  
+    # chrome_options.add_argument('--headless')  # Раскомментировать для работы без интерфейса
     chrome_options.add_argument('--disable-gpu')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--start-maximized')
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--disable-logging')
+    chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-    chrome_options.add_argument(f'user-agent={ua.random}') 
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
 def load_existing_links(file_path):
@@ -36,14 +33,28 @@ def load_existing_links(file_path):
     except FileNotFoundError:
         return set()
 
+def scroll_page(driver):
+    """Прокрутка страницы до конца для загрузки всех элементов."""
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    while True:
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)  # Пауза для загрузки контента
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
 def get_listing_links(page, driver, max_retries=2):
     """Сбор ссылок с указанной страницы с повторными попытками."""
     for attempt in range(max_retries):
         try:
-            url = f"{base_url}?p={page}"
+            url = f"{base_url}&p={page}"  # Исправлено: добавлен & для корректного URL
             driver.get(url)
             
-            # Ожидание загрузки всех объявлений 
+            # Прокрутка страницы
+            scroll_page(driver)
+            
+            # Ожидание загрузки всех объявлений
             WebDriverWait(driver, 15).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div[data-marker="item"]'))
             )
@@ -62,7 +73,7 @@ def get_listing_links(page, driver, max_retries=2):
             links = ['https://www.avito.ru' + item.find('a')['href'] for item in items if item.find('a')]
             
             # Проверка минимального количества ссылок
-            if len(links) < 1:
+            if len(links) < 10:  # Увеличено до 10
                 print(f"[!] Мало ссылок на странице {page}: {len(links)}, попытка {attempt + 1}")
                 if attempt < max_retries - 1:
                     time.sleep(random.uniform(5, 10))
@@ -94,7 +105,7 @@ def parse_avito_links(max_pages=100, output_file='links_2.txt'):
             print(f"\n[+] Страница {current_page}/{max_pages}")
             
             try:
-                base_delay = random.uniform(4, 8)  
+                base_delay = random.uniform(4, 8)
                 jitter = random.uniform(-1, 1)
                 delay = max(3, base_delay + jitter)
                 
@@ -137,4 +148,4 @@ def parse_avito_links(max_pages=100, output_file='links_2.txt'):
     print(f"[✔] Всего уникальных ссылок в базе: {len(existing_links)}")
 
 if __name__ == '__main__':
-    parse_avito_links(max_pages=5)
+    parse_avito_links(max_pages=100)
