@@ -89,7 +89,7 @@ def get_listing_links(page, driver, max_retries=2):
                 continue
             return None
 
-def parse_avito_links(max_pages=100, output_file='links_2.txt'):
+def parse_avito_links(max_pages=100, output_file='links_3.txt'):
     """Основная функция парсинга ссылок с Avito."""
     existing_links = load_existing_links(output_file)
     print(f"[*] Начато обновление базы. Существующих ссылок: {len(existing_links)}")
