@@ -14,10 +14,20 @@ from webdriver_manager.chrome import ChromeDriverManager
 from tqdm import tqdm
 from selenium.webdriver.common.action_chains import ActionChains
 from bs4 import BeautifulSoup
+import logging
+import os
+
+# Настройка логирования
+logging.basicConfig(
+    filename='parsing_log.txt',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    encoding='utf-8'
+)
 
 # Настройки Chrome
 options = Options()
-#options.add_argument('--headless')  # Запуск в фоновом режиме
+# options.add_argument('--headless')  # Запуск в фоновом режиме
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
 options.add_argument('--disable-blink-features=AutomationControlled')
@@ -37,10 +47,47 @@ driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
 })
 
 # Чтение ссылок
-with open("clean_links_3.txt", "r", encoding="utf-8") as f:
+with open("clean_links_2.txt", "r", encoding="utf-8") as f:
     urls = [line.strip() for line in f.readlines() if line.strip()]
 
+# Загрузка обработанных ссылок
+processed_urls_file = 'processed_urls.json'
+if os.path.exists(processed_urls_file):
+    with open(processed_urls_file, 'r', encoding='utf-8') as f:
+        processed_urls = set(json.load(f))
+else:
+    processed_urls = set()
+
+# Инициализация результатов
 results = []
+temp_output_file = 'temp_output_2.csv'
+if os.path.exists(temp_output_file):
+    with open(temp_output_file, 'r', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        results = [row for row in reader]
+
+# Функция для сохранения обработанных ссылок
+def save_processed_urls():
+    with open(processed_urls_file, 'w', encoding='utf-8') as f:
+        json.dump(list(processed_urls), f, ensure_ascii=False, indent=2)
+    logging.info("Processed URLs saved.")
+
+# Функция для промежуточного сохранения результатов
+def save_temp_results():
+    with open(temp_output_file, 'w', newline='', encoding='utf-8') as csvfile:
+        fieldnames = [
+            "Название", "Цена", "Адрес", "Дата публикации", "Продавец", "Тип продавца", "ID объявления",
+            "Количество комнат", "Общая площадь", "Жилая площадь", "Площадь кухни", "Этаж", "Этажей в доме",
+            "Высота потолков", "Санузел", "Балкон или лоджия", "Окна", "Ремонт", "Тёплый пол", "Мебель", "Техника",
+            "Отделка", "Тип дома", "Год постройки", "Пассажирский лифт", "Грузовой лифт", "Двор", "Парковка",
+            "Название новостройки", "Корпус, строение", "Вид сделки", "Способ продажи", "Тип участия", "Срок сдачи",
+            "Дополнительно", "Геолокация", "Ссылка"
+        ]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in results:
+            writer.writerow(row)
+    logging.info("Temporary results saved to temp_output.csv.")
 
 # Функция для безопасного извлечения текста
 def safe_find_element(driver, by, selector, default="", xpath_fallback=None, text_search=None):
@@ -78,10 +125,10 @@ def safe_find_element(driver, by, selector, default="", xpath_fallback=None, tex
                 return default
             except NoSuchElementException:
                 pass
-        print(f"Элемент не найден: {selector} (CSS), {xpath_fallback} (XPath), text_search: {text_search}")
+        logging.warning(f"Элемент не найден: {selector} (CSS), {xpath_fallback} (XPath), text_search: {text_search}")
         return default
     except Exception as e:
-        print(f"Ошибка при извлечении {selector}: {str(e)}")
+        logging.error(f"Ошибка при извлечении {selector}: {str(e)}")
         return default
 
 # Функция для безопасного извлечения атрибута
@@ -101,12 +148,12 @@ def safe_find_attribute(driver, by, selector, attribute, default="", xpath_fallb
                     return value
                 return default
             except NoSuchElementException:
-                print(f"Атрибут не найден: {selector} (CSS) и {xpath_fallback} (XPath) (атрибут: {attribute})")
+                logging.warning(f"Атрибут не найден: {selector} (CSS) и {xpath_fallback} (XPath) (атрибут: {attribute})")
                 return default
-        print(f"Атрибут не найден: {selector} (атрибут: {attribute})")
+        logging.warning(f"Атрибут не найден: {selector} (атрибут: {attribute})")
         return default
     except Exception as e:
-        print(f"Ошибка при извлечении атрибута {selector}: {str(e)}")
+        logging.error(f"Ошибка при извлечении атрибута {selector}: {str(e)}")
         return default
 
 # Функция для извлечения значения из мета-тегов
@@ -118,7 +165,7 @@ def get_meta_content(driver, property_name, default=""):
             return value
         return default
     except NoSuchElementException:
-        print(f"Мета-тег не найден: {property_name}")
+        logging.warning(f"Мета-тег не найден: {property_name}")
         return default
 
 # Функция для извлечения только основной части адреса
@@ -159,23 +206,23 @@ def get_geolocation(driver, default=""):
             return f"{coords_match.group(1)},{coords_match.group(2)}"
         return default
     except NoSuchElementException:
-        print("Скрипт Yandex Maps не найден")
+        logging.warning("Скрипт Yandex Maps не найден")
         return default
 
 # Функция для скроллинга страницы
 def scroll_page(driver):
     try:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(random.uniform(0.2, 0.5))  # Уменьшено с 0.5-1 до 0.2-0.5
+        time.sleep(random.uniform(0.2, 0.5))
         driver.execute_script("window.scrollTo(0, 0);")
-        time.sleep(random.uniform(0.1, 0.3))  # Уменьшено с 0.3-0.5 до 0.1-0.3
+        time.sleep(random.uniform(0.1, 0.3))
     except Exception as e:
-        print(f"Ошибка при скроллинге: {str(e)}")
+        logging.error(f"Ошибка при скроллинге: {str(e)}")
 
 # Функция для проверки и закрытия всплывающих окон
 def handle_popups(driver):
     try:
-        WebDriverWait(driver, 3).until(  # Уменьшено с 5 до 3 секунд
+        WebDriverWait(driver, 3).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-marker='portals-container']"))
         )
 
@@ -189,8 +236,8 @@ def handle_popups(driver):
                 try:
                     button = driver.find_element(By.XPATH, xpath)
                     button.click()
-                    print("Закрыто окно 'Посмотреть отзывы'")
-                    time.sleep(random.uniform(0.2, 0.5))  # Уменьшено с 0.5-1 до 0.2-0.5
+                    logging.info("Закрыто окно 'Посмотреть отзывы'")
+                    time.sleep(random.uniform(0.2, 0.5))
                     break
                 except NoSuchElementException:
                     continue
@@ -204,8 +251,8 @@ def handle_popups(driver):
                 try:
                     button = driver.find_element(By.XPATH, xpath)
                     button.click()
-                    print("Закрыто окно 'Нажмите, чтобы посмотреть планировку'")
-                    time.sleep(random.uniform(0.2, 0.5))  # Уменьшено с 0.5-1 до 0.2-0.5
+                    logging.info("Закрыто окно 'Нажмите, чтобы посмотреть планировку'")
+                    time.sleep(random.uniform(0.2, 0.5))
                     break
                 except NoSuchElementException:
                     continue
@@ -222,24 +269,24 @@ def handle_popups(driver):
                 try:
                     button = driver.find_element(By.XPATH, xpath)
                     button.click()
-                    print("Закрыт cookie-баннер")
-                    time.sleep(random.uniform(0.2, 0.5))  # Уменьшено с 0.5-1 до 0.2-0.5
+                    logging.info("Закрыт cookie-баннер")
+                    time.sleep(random.uniform(0.2, 0.5))
                     break
                 except NoSuchElementException:
                     continue
 
-            time.sleep(0.5)  # Уменьшено с 1 до 0.5 секунды
+            time.sleep(0.5)
 
     except TimeoutException:
-        print("Портал всплывающих окон не найден")
+        logging.info("Портал всплывающих окон не найден")
     except Exception as e:
-        print(f"Ошибка при обработке всплывающих окон: {str(e)}")
+        logging.error(f"Ошибка при обработке всплывающих окон: {str(e)}")
 
 # Функция для проверки капчи
 def check_captcha(driver):
     try:
         captcha = driver.find_element(By.XPATH, "//*[contains(text(), 'Пройдите проверку') or contains(text(), 'Капча') or contains(@class, 'captcha')]")
-        print("Обнаружена капча! Требуется ручное вмешательство.")
+        logging.warning("Обнаружена капча! Требуется ручное вмешательство.")
         return True
     except NoSuchElementException:
         return False
@@ -305,9 +352,9 @@ def parse_json_data(driver):
                                 data[name] = value
                         break
                     except json.JSONDecodeError as e:
-                        print(f"Ошибка декодирования JSON: {str(e)}")
+                        logging.error(f"Ошибка декодирования JSON: {str(e)}")
     except Exception as e:
-        print(f"Ошибка при парсинге JSON: {str(e)}")
+        logging.error(f"Ошибка при парсинге JSON: {str(e)}")
     return data
 
 # Функция для активации полной загрузки данных
@@ -315,8 +362,8 @@ def activate_full_data(driver):
     try:
         show_phone_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Показать телефон')]")
         show_phone_button.click()
-        print("Нажата кнопка 'Показать телефон'")
-        time.sleep(random.uniform(0.1, 0.5))  # Уменьшено с 1-2 до 0.5-1
+        logging.info("Нажата кнопка 'Показать телефон'")
+        time.sleep(random.uniform(0.1, 0.5))
     except NoSuchElementException:
         pass
 
@@ -328,207 +375,221 @@ def find_data(soup, keywords, tag_types=["div", "span", "p", "li"]):
     return None
 
 # Парсинг объявлений
-for url in tqdm(urls, desc="Парсинг объявлений", unit="ссылка"):
-    driver.get(url)
-    try:
-        WebDriverWait(driver, 7).until(  # Уменьшено с 15 до 7 секунд
-            EC.presence_of_element_located((By.CSS_SELECTOR, "h1[itemprop='name']"))
-        )
+try:
+    for url in tqdm(urls, desc="Парсинг объявлений", unit="ссылка"):
+        if url in processed_urls:
+            logging.info(f"Пропуск обработанной ссылки: {url}")
+            continue
 
-        handle_popups(driver)
-
-        if check_captcha(driver):
-            print(f"Капча на странице {url}. Ожидание ручного ввода...")
-            time.sleep(5)  # Уменьшено с 10 до 5 секунд
-
-        activate_full_data(driver)
-
+        driver.get(url)
         try:
-            WebDriverWait(driver, 8).until(  # Уменьшено с 15 до 8 секунд
-                EC.visibility_of_element_located((By.XPATH, "//div[@data-marker='item-specifications']//li"))
-                or EC.visibility_of_element_located((By.CSS_SELECTOR, "ul.item-params-list"))
-                or EC.visibility_of_element_located((By.XPATH, "//div[contains(@class, 'item-view')]//ul"))
+            WebDriverWait(driver, 7).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "h1[itemprop='name']"))
             )
-            print("Блок характеристик загружен")
+
+            handle_popups(driver)
+
+            if check_captcha(driver):
+                logging.warning(f"Капча на странице {url}. Ожидание ручного ввода...")
+                time.sleep(5)
+
+            activate_full_data(driver)
+
             try:
-                specs_block = driver.find_element(By.XPATH, "//div[@data-marker='item-specifications']")
-                driver.execute_script("arguments[0].scrollIntoView(true);", specs_block)
-                time.sleep(random.uniform(0.5, 1))  # Уменьшено с 1-2 до 0.5-1
-            except NoSuchElementException:
-                pass
-        except TimeoutException:
-            print("Блок характеристик не загрузился")
+                WebDriverWait(driver, 8).until(
+                    EC.visibility_of_element_located((By.XPATH, "//div[@data-marker='item-specifications']//li"))
+                    or EC.visibility_of_element_located((By.CSS_SELECTOR, "ul.item-params-list"))
+                    or EC.visibility_of_element_located((By.XPATH, "//div[contains(@class, 'item-view')]//ul"))
+                )
+                logging.info("Блок характеристик загружен")
+                try:
+                    specs_block = driver.find_element(By.XPATH, "//div[@data-marker='item-specifications']")
+                    driver.execute_script("arguments[0].scrollIntoView(true);", specs_block)
+                    time.sleep(random.uniform(0.5, 1))
+                except NoSuchElementException:
+                    pass
+            except TimeoutException:
+                logging.warning("Блок характеристик не загрузился")
 
-        scroll_page(driver)
+            scroll_page(driver)
 
-        time.sleep(random.uniform(0.5, 1))  # Уменьшено с 1-2 до 0.5-1
+            time.sleep(random.uniform(0.5, 1))
 
-        soup = BeautifulSoup(driver.page_source, "html.parser")
+            soup = BeautifulSoup(driver.page_source, "html.parser")
 
-        data = {}
+            data = {}
 
-        title = safe_find_element(
-            driver, By.CSS_SELECTOR, "h1[itemprop='name']",
-            xpath_fallback="//h1[@itemprop='name']",
-            text_search="к. квартира"
-        ).split("на продажу")[0].strip()
+            title = safe_find_element(
+                driver, By.CSS_SELECTOR, "h1[itemprop='name']",
+                xpath_fallback="//h1[@itemprop='name']",
+                text_search="к. квартира"
+            ).split("на продажу")[0].strip()
 
-        rooms, area, floor, total_floors = parse_title(title)
-        data["Количество комнат"] = rooms
-        data["Общая площадь"] = area
-        data["Этаж"] = floor
-        data["Этажей в доме"] = total_floors
-        data["Название"] = title
+            rooms, area, floor, total_floors = parse_title(title)
+            data["Количество комнат"] = rooms
+            data["Общая площадь"] = area
+            data["Этаж"] = floor
+            data["Этажей в доме"] = total_floors
+            data["Название"] = title
 
-        data["Цена"] = get_meta_content(driver, "product:price:amount")
-        data["Адрес"] = clean_address(safe_find_element(
-            driver, By.CSS_SELECTOR, "span[itemprop='address']",
-            xpath_fallback="//span[@itemprop='address']",
-            text_search="Адрес"
-        ) or safe_find_element(
-            driver, By.CSS_SELECTOR, "div[itemprop='addressLocality']",
-            xpath_fallback="//div[contains(@class, 'item-address')]"
-        ))
-        data["Дата публикации"] = safe_find_element(
-            driver, By.CSS_SELECTOR, "div[class*='item-view'] div[class*='date']",
-            xpath_fallback="//div[contains(@class, 'item-view')]//div[contains(text(), 'Опубликовано')]",
-            text_search="Опубликовано"
-        ) or safe_find_element(
-            driver, By.XPATH, "//div[contains(@class, 'title-info-metadata-item')]"
-        )
-        data["Продавец"] = get_meta_content(driver, "vk:seller_name")
-        data["Тип продавца"] = safe_find_element(
-            driver, By.CSS_SELECTOR, "div[class*='seller-info']",
-            xpath_fallback="//div[contains(@class, 'seller-info')]//div[contains(text(), 'Тип продавца')]",
-            text_search="Тип продавца"
-        ) or safe_find_element(
-            driver, By.XPATH, "//div[contains(@class, 'seller-info')]//span[contains(text(), 'Агентство') or contains(text(), 'Частное лицо') or contains(text(), 'Риелтор')]"
-        )
-        if data["Тип продавца"]:
-            data["Тип продавца"] = data["Тип продавца"].split("\n")[0].strip()
-        data["ID объявления"] = url.split('_')[-1]
-
-        characteristics = [
-            ("Жилая площадь", "Жилая площадь"),
-            ("Площадь кухни", "Площадь кухни"),
-            ("Высота потолков", "Высота потолков"),
-            ("Санузел", "Санузел"),
-            ("Балкон или лоджия", "Балкон"),
-            ("Окна", "Окна"),
-            ("Ремонт", "Ремонт"),
-            ("Тёплый пол", "Тёплый пол"),
-            ("Мебель", "Мебель"),
-            ("Техника", "Техника"),
-            ("Отделка", "Отделка"),
-            ("Тип дома", "Тип дома"),
-            ("Год постройки", "Год постройки"),
-            ("Пассажирский лифт", "Пассажирский лифт"),
-            ("Грузовой лифт", "Грузовой лифт"),
-            ("Двор", "Двор"),
-            ("Парковка", "Парковка"),
-            ("Название новостройки", "Название новостройки"),
-            ("Корпус, строение", "Корпус"),
-            ("Вид сделки", "Вид сделки"),
-            ("Способ продажи", "Способ продажи"),
-            ("Тип участия", "Тип участия"),
-            ("Срок сдачи", "Срок сдачи"),
-            ("Дополнительно", "Дополнительно")
-        ]
-
-        for key, search_text in characteristics:
-            data[key] = safe_find_element(
-                driver, By.XPATH, f"//li[contains(@class, 'params-paramsList__item-_2Y2O') and contains(., '{search_text}')]",
-                xpath_fallback=f"//ul[contains(@class, 'item-params')]//li[contains(@class, 'params-paramsList__item-_2Y2O') and contains(., '{search_text}')]",
-                text_search=search_text
+            data["Цена"] = get_meta_content(driver, "product:price:amount")
+            data["Адрес"] = clean_address(safe_find_element(
+                driver, By.CSS_SELECTOR, "span[itemprop='address']",
+                xpath_fallback="//span[@itemprop='address']",
+                text_search="Адрес"
+            ) or safe_find_element(
+                driver, By.CSS_SELECTOR, "div[itemprop='addressLocality']",
+                xpath_fallback="//div[contains(@class, 'item-address')]"
+            ))
+            data["Дата публикации"] = safe_find_element(
+                driver, By.CSS_SELECTOR, "div[class*='item-view'] div[class*='date']",
+                xpath_fallback="//div[contains(@class, 'item-view')]//div[contains(text(), 'Опубликовано')]",
+                text_search="Опубликовано"
+            ) or safe_find_element(
+                driver, By.XPATH, "//div[contains(@class, 'title-info-metadata-item')]"
             )
+            data["Продавец"] = get_meta_content(driver, "vk:seller_name")
+            data["Тип продавца"] = safe_find_element(
+                driver, By.CSS_SELECTOR, "div[class*='seller-info']",
+                xpath_fallback="//div[contains(@class, 'seller-info')]//div[contains(text(), 'Тип продавца')]",
+                text_search="Тип продавца"
+            ) or safe_find_element(
+                driver, By.XPATH, "//div[contains(@class, 'seller-info')]//span[contains(text(), 'Агентство') or contains(text(), 'Частное лицо') or contains(text(), 'Риелтор')]"
+            )
+            if data["Тип продавца"]:
+                data["Тип продавца"] = data["Тип продавца"].split("\n")[0].strip()
+            data["ID объявления"] = url.split('_')[-1]
 
-        description = get_meta_content(driver, "og:description")
-        if description:
-            desc_data = parse_description(description)
-            for key in desc_data:
-                if not data.get(key):
-                    data[key] = desc_data[key]
+            characteristics = [
+                ("Жилая площадь", "Жилая площадь"),
+                ("Площадь кухни", "Площадь кухни"),
+                ("Высота потолков", "Высота потолков"),
+                ("Санузел", "Санузел"),
+                ("Балкон или лоджия", "Балкон"),
+                ("Окна", "Окна"),
+                ("Ремонт", "Ремонт"),
+                ("Тёплый пол", "Тёплый пол"),
+                ("Мебель", "Мебель"),
+                ("Техника", "Техника"),
+                ("Отделка", "Отделка"),
+                ("Тип дома", "Тип дома"),
+                ("Год постройки", "Год постройки"),
+                ("Пассажирский лифт", "Пассажирский лифт"),
+                ("Грузовой лифт", "Грузовой лифт"),
+                ("Двор", "Двор"),
+                ("Парковка", "Парковка"),
+                ("Название новостройки", "Название новостройки"),
+                ("Корпус, строение", "Корпус"),
+                ("Вид сделки", "Вид сделки"),
+                ("Способ продажи", "Способ продажи"),
+                ("Тип участия", "Тип участия"),
+                ("Срок сдачи", "Срок сдачи"),
+                ("Дополнительно", "Дополнительно")
+            ]
 
-        json_data = parse_json_data(driver)
-        for key in characteristics:
-            key_name = key[0]
-            if not data.get(key_name) and key_name in json_data:
-                data[key_name] = json_data[key_name]
-
-        item_view = safe_find_element(driver, By.CSS_SELECTOR, "div.item-view", xpath_fallback="//div[contains(@class, 'item-view')]")
-        if item_view:
             for key, search_text in characteristics:
-                if not data[key]:
-                    match = re.search(rf"{search_text}:?\s*([\w\s\d.,-]+)", item_view, re.IGNORECASE)
-                    if match:
-                        data[key] = match.group(1).strip()
+                data[key] = safe_find_element(
+                    driver, By.XPATH, f"//li[contains(@class, 'params-paramsList__item-_2Y2O') and contains(., '{search_text}')]",
+                    xpath_fallback=f"//ul[contains(@class, 'item-params')]//li[contains(@class, 'params-paramsList__item-_2Y2O') and contains(., '{search_text}')]",
+                    text_search=search_text
+                )
 
-        if not data.get("Адрес"):
-            address_keywords = ["адрес", "улица", "ул.", "москва"]
-            data["Адрес"] = find_data(soup, address_keywords) or "Москва, Корабельная ул., 5А"
+            description = get_meta_content(driver, "og:description")
+            if description:
+                desc_data = parse_description(description)
+                for key in desc_data:
+                    if not data.get(key):
+                        data[key] = desc_data[key]
 
-        if not data.get("Дата публикации"):
-            date_keywords = ["опубликовано", "дата"]
-            data["Дата публикации"] = find_data(soup, date_keywords)
+            json_data = parse_json_data(driver)
+            for key in characteristics:
+                key_name = key[0]
+                if not data.get(key_name) and key_name in json_data:
+                    data[key_name] = json_data[key_name]
 
-        if not data.get("Отделка"):
-            finish_keywords = ["отделка", "ремонт"]
-            data["Отделка"] = find_data(soup, finish_keywords) or "дизайнерский ремонт"
+            item_view = safe_find_element(driver, By.CSS_SELECTOR, "div.item-view", xpath_fallback="//div[contains(@class, 'item-view')]")
+            if item_view:
+                for key, search_text in characteristics:
+                    if not data[key]:
+                        match = re.search(rf"{search_text}:?\s*([\w\s\d.,-]+)", item_view, re.IGNORECASE)
+                        if match:
+                            data[key] = match.group(1).strip()
 
-        if not data.get("Год постройки"):
-            year_keywords = ["год постройки", "построен"]
-            data["Год постройки"] = find_data(soup, year_keywords)
+            if not data.get("Адрес"):
+                address_keywords = ["адрес", "улица", "ул.", "москва"]
+                data["Адрес"] = find_data(soup, address_keywords) or "Москва, Корабельная ул., 5А"
 
-        if not data.get("Название новостройки"):
-            building_keywords = ["новостройка", "жк", "river park"]
-            data["Название новостройки"] = find_data(soup, building_keywords) or "Ривер Парк Коломенское"
+            if not data.get("Дата публикации"):
+                date_keywords = ["опубликовано", "дата"]
+                data["Дата публикации"] = find_data(soup, date_keywords)
 
-        if not data.get("Корпус, строение"):
-            corpus_keywords = ["корпус", "строение"]
-            data["Корпус, строение"] = find_data(soup, corpus_keywords)
+            if not data.get("Отделка"):
+                finish_keywords = ["отделка", "ремонт"]
+                data["Отделка"] = find_data(soup, finish_keywords) or "дизайнерский ремонт"
 
-        if not data.get("Вид сделки"):
-            deal_keywords = ["вид сделки", "продажа"]
-            data["Вид сделки"] = find_data(soup, deal_keywords) or "прямая продажа"
+            if not data.get("Год постройки"):
+                year_keywords = ["год постройки", "построен"]
+                data["Год постройки"] = find_data(soup, year_keywords)
 
-        if not data.get("Тип участия"):
-            participation_keywords = ["тип участия"]
-            data["Тип участия"] = find_data(soup, participation_keywords)
+            if not data.get("Название новостройки"):
+                building_keywords = ["новостройка", "жк", "river park"]
+                data["Название новостройки"] = find_data(soup, building_keywords) or "Ривер Парк Коломенское"
 
-        if not data.get("Срок сдачи"):
-            deadline_keywords = ["срок сдачи"]
-            data["Срок сдачи"] = find_data(soup, deadline_keywords)
+            if not data.get("Корпус, строение"):
+                corpus_keywords = ["корпус", "строение"]
+                data["Корпус, строение"] = find_data(soup, corpus_keywords)
 
-        if description:
-            additional_info = "20 метров до набережной, остановка речных трамвайчиков напротив подъезда, 5 минут пешком до метро БКЛ Нагатинский затон."
-            data["Дополнительно"] = additional_info
+            if not data.get("Вид сделки"):
+                deal_keywords = ["вид сделки", "продажа"]
+                data["Вид сделки"] = find_data(soup, deal_keywords) or "прямая продажа"
 
-        data["Геолокация"] = get_geolocation(driver)
-        data["Ссылка"] = url
+            if not data.get("Тип участия"):
+                participation_keywords = ["тип участия"]
+                data["Тип участия"] = find_data(soup, participation_keywords)
 
-        results.append(data)
+            if not data.get("Срок сдачи"):
+                deadline_keywords = ["срок сдачи"]
+                data["Срок сдачи"] = find_data(soup, deadline_keywords)
 
-    except TimeoutException:
-        print(f"Ошибка загрузки страницы для {url}: тайм-аут")
-        continue
-    except Exception as e:
-        print(f"Ошибка при парсинге {url}: {str(e)}")
-        continue
+            if description:
+                additional_info = "20 метров до набережной, остановка речных трамвайчиков напротив подъезда, 5 минут пешком до метро БКЛ Нагатинский затон."
+                data["Дополнительно"] = additional_info
 
-# Сохранение в CSV
-with open("output_6.csv", "w", newline='', encoding="utf-8") as csvfile:
-    fieldnames = [
-        "Название", "Цена", "Адрес", "Дата публикации", "Продавец", "Тип продавца", "ID объявления",
-        "Количество комнат", "Общая площадь", "Жилая площадь", "Площадь кухни", "Этаж", "Этажей в доме",
-        "Высота потолков", "Санузел", "Балкон или лоджия", "Окна", "Ремонт", "Тёплый пол", "Мебель", "Техника",
-        "Отделка", "Тип дома", "Год постройки", "Пассажирский лифт", "Грузовой лифт", "Двор", "Парковка",
-        "Название новостройки", "Корпус, строение", "Вид сделки", "Способ продажи", "Тип участия", "Срок сдачи",
-        "Дополнительно", "Геолокация", "Ссылка"
-    ]
-    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-    writer.writeheader()
-    for row in results:
-        writer.writerow(row)
+            data["Геолокация"] = get_geolocation(driver)
+            data["Ссылка"] = url
 
-driver.quit()
-print("✅ Готово! Данные сохранены")
+            results.append(data)
+            processed_urls.add(url)
+            save_processed_urls()
+            save_temp_results()
+            logging.info(f"Успешно обработана ссылка: {url}")
+
+        except TimeoutException:
+            logging.error(f"Ошибка загрузки страницы для {url}: тайм-аут")
+            continue
+        except Exception as e:
+            logging.error(f"Ошибка при парсинге {url}: {str(e)}")
+            continue
+
+except KeyboardInterrupt:
+    logging.warning("Парсинг прерван пользователем")
+    save_processed_urls()
+    save_temp_results()
+finally:
+    # Сохранение финальных результатов
+    with open("output_5.csv", "w", newline='', encoding="utf-8") as csvfile:
+        fieldnames = [
+            "Название", "Цена", "Адрес", "Дата публикации", "Продавец", "Тип продавца", "ID объявления",
+            "Количество комнат", "Общая площадь", "Жилая площадь", "Площадь кухни", "Этаж", "Этажей в доме",
+            "Высота потолков", "Санузел", "Балкон или лоджия", "Окна", "Ремонт", "Тёплый пол", "Мебель", "Техника",
+            "Отделка", "Тип дома", "Год постройки", "Пассажирский лифт", "Грузовой лифт", "Двор", "Парковка",
+            "Название новостройки", "Корпус, строение", "Вид сделки", "Способ продажи", "Тип участия", "Срок сдачи",
+            "Дополнительно", "Геолокация", "Ссылка"
+        ]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in results:
+            writer.writerow(row)
+    logging.info("Финальные данные сохранены")
+    driver.quit()
+    print("✅ Готово! Данные сохранены")

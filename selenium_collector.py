@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 
-base_url = 'https://www.avito.ru/moskva/kvartiry/prodam-ASgBAgICAUSSA8YQ?context=H4sIAAAAAAAA_wEjANz_YToxOntzOjg6ImZyb21QYWdlIjtzOjc6ImNhdGFsb2ciO312FITcIwAAAA&f=ASgBAQICAUSSA8YQAUDKCCT8zzKEWQ'
+base_url = 'https://www.avito.ru/moskva/kvartiry/prodam-ASgBAgICAUSSA8YQ?context=H4sIAAAAAAAA_wEjANz_YToxOntzOjg6ImZyb21QYWdlIjtzOjc6ImNhdGFsb2ciO312FITcIwAAAA&f=ASgBAQICAUSSA8YQAUDKCHSKWZqsAZisAZasAZSsAYhZhlk'
 
 def setup_driver():
     """Настройка веб-драйвера Chrome с оптимизациями."""
@@ -89,7 +89,7 @@ def get_listing_links(page, driver, max_retries=2):
                 continue
             return None
 
-def parse_avito_links(max_pages=100, output_file='links_3.txt'):
+def parse_avito_links(max_pages=100, output_file='links_4.txt'):
     """Основная функция парсинга ссылок с Avito."""
     existing_links = load_existing_links(output_file)
     print(f"[*] Начато обновление базы. Существующих ссылок: {len(existing_links)}")
